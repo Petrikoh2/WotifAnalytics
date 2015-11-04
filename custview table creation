@@ -1,0 +1,60 @@
+
+
+---------------------------- Creating the Raw Table ----------------------------------
+
+--drop table if exists ewwgao.an_custview_raw;
+
+--create table ewwgao.an_custview_raw as 
+--select distinct
+--trl_sum.tpid, 
+--trl_sum.eapid, 
+--case when trl_sum.tpid=70125 and trl_sum.eapid<>8868 then "WOTIF AU"
+--     when trl_sum.tpid=70125 and trl_sum.eapid=8868 then "LM AU" 
+--     when trl_sum.tpid=70129 and trl_sum.eapid<>99554 then "WOTIF NZ"
+--     when trl_sum.tpid=70129 and trl_sum.eapid=99554 then "LM NZ" 
+--     when trl_sum.tpid=25 then "EXPEDIA AU"
+--     when trl_sum.tpid=29 then "EXPEDIA NZ" end as site_name, 
+--tad.trvl_acct_email_addr as email_address, 
+--trl_sum.site_platform as purchasing_device,
+--split(trl_sum.rlt_mktg_code,"[.]" )[0] as rlt_mktg_channel, 
+--split(trl_sum.lt_mktg_code,"[.]" )[0] as lt_mktg_channel, 
+--split(trl_sum.geo_segment_location,"[:]")[1] as booking_state, 
+--coalesce(prop_dim.property_mkt_name, otf_eww.dest_airpt_code) as travel_area, 
+--prop_dim.property_cntry_code as travel_country,  
+--trl_sum.local_date 
+--from
+--cdm.expe_trvl_acct_detail_dim tad
+--inner join cdm.order_trans_fact_eww otf_eww on tad.consumer_key=otf_eww.consumer_key and otf_eww.tpid=tad.trvl_acct_tpid 
+--inner join dm.dm_omniture_trl_level_summary trl_sum on otf_eww.tpid=trl_sum.tpid and otf_eww.trl=trl_sum.trl
+--left join dm.lodg_rm_trans_fact tf on tf.tpid=otf_eww.tpid and tf.trl=otf_eww.trl
+--left join dm.lodg_property_dim prop_dim on tf.lodg_property_key=prop_dim.lodg_property_key
+--where
+--trl_sum.tpid in (70125, 70129, 25, 29) and trl_sum.local_date like "2015%";
+
+
+---------------------------- Creating the Aggregated Table ----------------------------------
+
+drop table if exists ewwgao.an_custview_agg;
+
+create table ewwgao.an_custview_agg as
+select 
+tpid,
+eapid,
+site_name,
+email_address, 
+booking_state, 
+collect_set(rlt_mktg_channel) as rlt_channel, 
+collect_set(lt_mktg_channel) as lt_channel, 
+collect_set(purchasing_device) as purchasing_device,
+collect_set(travel_area) as travel_locations,
+collect_set(travel_country) as travel_countries,
+collect_set(local_date) as tran_dates, 
+count(email_address) as order_count
+FROM 
+ewwgao.an_custview_raw
+group by 
+tpid,
+eapid,
+site_name,
+email_address,  
+booking_state;
